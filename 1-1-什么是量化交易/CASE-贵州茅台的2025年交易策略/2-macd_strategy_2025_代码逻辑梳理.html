@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MACD策略回测代码逻辑梳理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 4px solid #667eea;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-left: 15px;
+            border-left: 5px solid #667eea;
+            font-size: 1.8em;
+        }
+        
+        h3 {
+            color: #555;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        
+        h4 {
+            color: #666;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .code-block .keyword {
+            color: #c678dd;
+        }
+        
+        .code-block .function {
+            color: #61afef;
+        }
+        
+        .code-block .string {
+            color: #98c379;
+        }
+        
+        .code-block .comment {
+            color: #5c6370;
+            font-style: italic;
+        }
+        
+        .flow-diagram {
+            background: #fff;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .flow-step {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            position: relative;
+            padding-left: 50px;
+        }
+        
+        .flow-step::before {
+            content: counter(step-counter);
+            counter-increment: step-counter;
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.3);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .flow-diagram {
+            counter-reset: step-counter;
+        }
+        
+        .function-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .function-list li {
+            background: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .function-list li strong {
+            color: #667eea;
+            font-size: 1.1em;
+        }
+        
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+        }
+        
+        .param-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .param-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .param-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .strategy-logic {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .strategy-logic h3 {
+            color: white;
+            margin-top: 0;
+        }
+        
+        .strategy-logic ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .strategy-logic li {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+        }
+        
+        .strategy-logic li::before {
+            content: "→ ";
+            font-weight: bold;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            background: #d1ecf1;
+            border-left: 4px solid #0c5460;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #856404;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MACD策略回测代码逻辑梳理</h1>
+        
+        <div class="section">
+            <h2>一、代码概述</h2>
+            <p><strong>文件名称：</strong><code>2-macd_strategy_2025.py</code></p>
+            <p><strong>功能描述：</strong>基于MACD指标的交易策略回测系统，针对寒武纪股票（688256.SH）进行2025年全年的策略回测。</p>
+            <p><strong>策略类型：</strong>技术指标策略 - MACD金叉死叉策略</p>
+            <p><strong>回测方式：</strong>使用本地CSV数据进行历史回测</p>
+        </div>
+        
+        <div class="section">
+            <h2>二、策略参数配置</h2>
+            <table class="param-table">
+                <thead>
+                    <tr>
+                        <th>参数名称</th>
+                        <th>参数值</th>
+                        <th>说明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>STOCK_CODE</code></td>
+                        <td>688256.SH</td>
+                        <td>寒武纪股票代码</td>
+                    </tr>
+                    <tr>
+                        <td><code>STOCK_NAME</code></td>
+                        <td>寒武纪</td>
+                        <td>股票名称</td>
+                    </tr>
+                    <tr>
+                        <td><code>SHORT_PERIOD</code></td>
+                        <td>12</td>
+                        <td>MACD快线周期（EMA12）</td>
+                    </tr>
+                    <tr>
+                        <td><code>LONG_PERIOD</code></td>
+                        <td>26</td>
+                        <td>MACD慢线周期（EMA26）</td>
+                    </tr>
+                    <tr>
+                        <td><code>SIGNAL_PERIOD</code></td>
+                        <td>9</td>
+                        <td>MACD信号线周期（DEA）</td>
+                    </tr>
+                    <tr>
+                        <td><code>START_DATE</code></td>
+                        <td>2025-01-01</td>
+                        <td>回测开始日期</td>
+                    </tr>
+                    <tr>
+                        <td><code>END_DATE</code></td>
+                        <td>2025-12-31</td>
+                        <td>回测结束日期</td>
+                    </tr>
+                    <tr>
+                        <td><code>INIT_CASH</code></td>
+                        <td>1,000,000.0</td>
+                        <td>初始资金（100万元）</td>
+                    </tr>
+                    <tr>
+                        <td><code>LOT_SIZE</code></td>
+                        <td>100</td>
+                        <td>最小交易单位（1手=100股）</td>
+                    </tr>
+                    <tr>
+                        <td><code>COMMISSION_RATE</code></td>
+                        <td>0.0003</td>
+                        <td>手续费率（万分之三，买卖双向收取）</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h2>三、核心策略逻辑</h2>
+            <div class="strategy-logic">
+                <h3>MACD金叉死叉策略</h3>
+                <ul>
+                    <li><strong>买入信号（金叉）：</strong>当DIF线上穿DEA线时，满仓买入</li>
+                    <li><strong>卖出信号（死叉）：</strong>当DIF线下穿DEA线时，清仓卖出</li>
+                    <li><strong>持仓管理：</strong>全仓买入和全仓卖出，不进行部分仓位管理</li>
+                </ul>
+            </div>
+            
+            <h4>MACD指标计算逻辑：</h4>
+            <div class="code-block">
+<span class="comment"># MACD指标计算公式</span>
+<span class="comment"># 1. 计算快线EMA(12)和慢线EMA(26)</span>
+EMA_12 = <span class="function">ewm</span>(close, span=<span class="string">12</span>)
+EMA_26 = <span class="function">ewm</span>(close, span=<span class="string">26</span>)
+
+<span class="comment"># 2. 计算DIF线（快线 - 慢线）</span>
+DIF = EMA_12 - EMA_26
+
+<span class="comment"># 3. 计算DEA线（DIF的9日EMA）</span>
+DEA = <span class="function">ewm</span>(DIF, span=<span class="string">9</span>)
+
+<span class="comment"># 4. 计算MACD柱状图</span>
+MACD柱 = (DIF - DEA) × 2
+            </div>
+            
+            <h4>交易信号判断：</h4>
+            <div class="code-block">
+<span class="comment"># 金叉判断：DIF上穿DEA</span>
+金叉条件 = (DIF[i-1] ≤ DEA[i-1]) <span class="keyword">and</span> (DIF[i] > DEA[i])
+
+<span class="comment"># 死叉判断：DIF下穿DEA</span>
+死叉条件 = (DIF[i-1] ≥ DEA[i-1]) <span class="keyword">and</span> (DIF[i] < DEA[i])
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>四、核心函数说明</h2>
+            <ul class="function-list">
+                <li>
+                    <strong>load_stock_data(data_file)</strong>
+                    <p><strong>功能：</strong>从CSV文件加载股票历史数据</p>
+                    <p><strong>输入：</strong>CSV文件路径</p>
+                    <p><strong>输出：</strong>包含日期和收盘价的DataFrame</p>
+                    <p><strong>处理：</strong>读取CSV → 转换日期格式 → 按日期排序 → 返回数据</p>
+                </li>
+                
+                <li>
+                    <strong>get_MACD(close, short, long, m)</strong>
+                    <p><strong>功能：</strong>计算MACD指标（DIF、DEA、MACD柱）</p>
+                    <p><strong>输入：</strong>收盘价序列、快线周期、慢线周期、信号线周期</p>
+                    <p><strong>输出：</strong>DIF数组、DEA数组、MACD柱数组</p>
+                    <p><strong>算法：</strong>使用pandas的ewm函数计算指数移动平均线</p>
+                </li>
+                
+                <li>
+                    <strong>calculate_max_drawdown(nav_series)</strong>
+                    <p><strong>功能：</strong>计算最大回撤</p>
+                    <p><strong>输入：</strong>净值序列（pandas Series）</p>
+                    <p><strong>输出：</strong>最大回撤值（负数）</p>
+                    <p><strong>计算逻辑：</strong>回撤 = (当前净值 / 历史最高净值) - 1，取最小值</p>
+                </li>
+                
+                <li>
+                    <strong>calculate_total_return(nav_series)</strong>
+                    <p><strong>功能：</strong>计算总收益率</p>
+                    <p><strong>输入：</strong>净值序列</p>
+                    <p><strong>输出：</strong>总收益率（小数形式）</p>
+                    <p><strong>计算逻辑：</strong>总收益率 = (期末净值 / 期初净值) - 1</p>
+                </li>
+                
+                <li>
+                    <strong>plot_strategy_results(...)</strong>
+                    <p><strong>功能：</strong>绘制策略回测结果图表</p>
+                    <p><strong>输出图表：</strong></p>
+                    <ul>
+                        <li>子图1：股价走势与买卖点标记</li>
+                        <li>子图2：MACD指标（DIF线、DEA线、MACD柱）</li>
+                        <li>子图3：资金曲线（净值变化）</li>
+                    </ul>
+                    <p><strong>保存：</strong>图表保存为PNG文件到outputs目录</p>
+                </li>
+                
+                <li>
+                    <strong>macd_strategy_backtest(data_file)</strong>
+                    <p><strong>功能：</strong>MACD策略回测主函数</p>
+                    <p><strong>流程：</strong>见下方详细流程图</p>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>五、回测流程详解</h2>
+            <div class="flow-diagram">
+                <div class="flow-step">
+                    <strong>步骤1：加载历史数据</strong>
+                    <p>从CSV文件读取股票数据，包括日期和收盘价，并进行数据清洗和排序</p>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤2：计算MACD指标</strong>
+                    <p>使用全部历史数据计算MACD指标（DIF、DEA、MACD柱），确保有足够的历史数据用于计算</p>
+                    <div class="info-box">
+                        <strong>注意：</strong>使用全部历史数据计算MACD，但只对回测区间（2025年）进行交易回测
+                    </div>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤3：过滤回测区间数据</strong>
+                    <p>从全部数据中筛选出回测区间（2025-01-01至2025-12-31）的数据</p>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤4：初始化回测状态</strong>
+                    <p>初始化现金、持仓、净值等变量</p>
+                    <ul>
+                        <li>初始现金 = 1,000,000元</li>
+                        <li>初始持仓 = 0股</li>
+                        <li>创建仓位和净值数组</li>
+                    </ul>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤5：逐日回测循环</strong>
+                    <p>对回测区间内的每个交易日进行以下操作：</p>
+                    <ol>
+                        <li><strong>判断MACD信号：</strong>
+                            <ul>
+                                <li>检查是否出现金叉（DIF上穿DEA）</li>
+                                <li>检查是否出现死叉（DIF下穿DEA）</li>
+                            </ul>
+                        </li>
+                        <li><strong>执行买入操作（金叉且空仓）：</strong>
+                            <ul>
+                                <li>计算可用资金（考虑手续费）</li>
+                                <li>计算可买入股数（向下取整到100的整数倍）</li>
+                                <li>计算买入金额和手续费</li>
+                                <li>更新现金和持仓</li>
+                                <li>记录交易信息</li>
+                            </ul>
+                        </li>
+                        <li><strong>执行卖出操作（死叉且持仓）：</strong>
+                            <ul>
+                                <li>计算卖出金额</li>
+                                <li>扣除手续费</li>
+                                <li>更新现金和持仓（清仓）</li>
+                                <li>记录交易信息</li>
+                            </ul>
+                        </li>
+                        <li><strong>计算当日净值：</strong>
+                            <ul>
+                                <li>净值 = 现金 + 持仓市值</li>
+                                <li>仓位比例 = 持仓市值 / 净值</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤6：计算回测指标</strong>
+                    <p>计算策略表现指标：</p>
+                    <ul>
+                        <li>总收益率</li>
+                        <li>最大回撤</li>
+                        <li>交易次数</li>
+                        <li>期末净值和现金</li>
+                    </ul>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤7：保存结果</strong>
+                    <p>将回测结果保存到文件：</p>
+                    <ul>
+                        <li>净值曲线CSV文件</li>
+                        <li>交易记录CSV文件</li>
+                        <li>汇总报告TXT文件</li>
+                    </ul>
+                </div>
+                
+                <div class="flow-step">
+                    <strong>步骤8：绘制策略图表</strong>
+                    <p>生成可视化图表，包括股价走势、MACD指标和资金曲线</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>六、交易执行细节</h2>
+            
+            <h3>6.1 买入逻辑</h3>
+            <div class="code-block">
+<span class="comment"># 买入条件：金叉且当前空仓</span>
+<span class="keyword">if</span> 金叉 <span class="keyword">and</span> shares == <span class="string">0</span>:
+    <span class="comment"># 1. 计算可用资金（扣除手续费）</span>
+    可用资金 = 现金 / (<span class="string">1</span> + 手续费率)
+    
+    <span class="comment"># 2. 计算可买入股数（向下取整到100的整数倍）</span>
+    最大股数 = int(可用资金 / 当前价格 / <span class="string">100</span>) × <span class="string">100</span>
+    
+    <span class="comment"># 3. 计算买入成本和手续费</span>
+    买入金额 = 最大股数 × 当前价格
+    手续费 = 买入金额 × 手续费率
+    总成本 = 买入金额 + 手续费
+    
+    <span class="comment"># 4. 执行买入</span>
+    <span class="keyword">if</span> 总成本 ≤ 现金:
+        持仓 = 最大股数
+        现金 -= 总成本
+        记录交易信息
+            </div>
+            
+            <h3>6.2 卖出逻辑</h3>
+            <div class="code-block">
+<span class="comment"># 卖出条件：死叉且当前持仓</span>
+<span class="keyword">if</span> 死叉 <span class="keyword">and</span> shares > <span class="string">0</span>:
+    <span class="comment"># 1. 计算卖出金额和手续费</span>
+    卖出金额 = 持仓 × 当前价格
+    手续费 = 卖出金额 × 手续费率
+    净收入 = 卖出金额 - 手续费
+    
+    <span class="comment"># 2. 执行卖出（清仓）</span>
+    现金 += 净收入
+    持仓 = <span class="string">0</span>
+    记录交易信息
+            </div>
+            
+            <h3>6.3 手续费计算</h3>
+            <div class="info-box">
+                <p><strong>手续费率：</strong>0.0003（万分之三）</p>
+                <p><strong>收取方式：</strong>买入和卖出双向收取</p>
+                <p><strong>计算公式：</strong></p>
+                <ul>
+                    <li>买入手续费 = 买入金额 × 0.0003</li>
+                    <li>卖出手续费 = 卖出金额 × 0.0003</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>七、输出结果</h2>
+            
+            <h3>7.1 控制台输出</h3>
+            <ul>
+                <li>回测参数信息</li>
+                <li>数据加载状态</li>
+                <li>回测执行进度</li>
+                <li>回测结果汇总（总收益率、最大回撤、交易次数等）</li>
+                <li>详细交易记录</li>
+            </ul>
+            
+            <h3>7.2 文件输出</h3>
+            <table class="param-table">
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>格式</th>
+                        <th>内容</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>macd_strategy_2025_nav.csv</code></td>
+                        <td>CSV</td>
+                        <td>每日净值、收益率、仓位比例</td>
+                    </tr>
+                    <tr>
+                        <td><code>macd_strategy_2025_trades.csv</code></td>
+                        <td>CSV</td>
+                        <td>所有交易记录（买入/卖出）</td>
+                    </tr>
+                    <tr>
+                        <td><code>macd_strategy_2025_summary.txt</code></td>
+                        <td>TXT</td>
+                        <td>回测结果汇总报告</td>
+                    </tr>
+                    <tr>
+                        <td><code>macd_strategy_2025_chart.png</code></td>
+                        <td>PNG</td>
+                        <td>策略回测可视化图表</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h3>7.3 图表内容</h3>
+            <ul>
+                <li><strong>子图1 - 股价走势：</strong>收盘价曲线 + 买入点（红色向上三角）+ 卖出点（绿色向下三角）</li>
+                <li><strong>子图2 - MACD指标：</strong>DIF线（蓝色）+ DEA线（橙色）+ MACD柱状图（红绿）</li>
+                <li><strong>子图3 - 资金曲线：</strong>净值变化曲线 + 初始资金参考线 + 盈利/亏损区域填充</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>八、关键指标说明</h2>
+            
+            <h3>8.1 总收益率</h3>
+            <div class="code-block">
+总收益率 = (期末净值 / 期初净值) - 1
+            </div>
+            <p>衡量策略在整个回测期间的收益表现</p>
+            
+            <h3>8.2 最大回撤</h3>
+            <div class="code-block">
+回撤 = (当前净值 / 历史最高净值) - 1
+最大回撤 = min(所有回撤值)
+            </div>
+            <p>衡量策略的风险水平，最大回撤越小说明风险控制越好</p>
+            
+            <h3>8.3 交易次数</h3>
+            <p>统计回测期间内执行的买入和卖出操作的总次数</p>
+            
+            <div class="warning-box">
+                <strong>注意事项：</strong>
+                <ul>
+                    <li>策略使用全仓买入和全仓卖出，不进行仓位管理</li>
+                    <li>交易必须满足最小交易单位（100股）的要求</li>
+                    <li>手续费会影响实际收益，已纳入计算</li>
+                    <li>MACD指标需要足够的历史数据才能准确计算</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>九、代码结构总结</h2>
+            <div class="code-block">
+<span class="comment"># 代码结构层次</span>
+├── 导入库和配置参数
+│   ├── 数据科学库（pandas, numpy）
+│   ├── 绘图库（matplotlib）
+│   └── 策略参数配置
+│
+├── 辅助函数
+│   ├── load_stock_data()          <span class="comment"># 数据加载</span>
+│   ├── get_MACD()                 <span class="comment"># MACD计算</span>
+│   ├── calculate_max_drawdown()   <span class="comment"># 回撤计算</span>
+│   └── calculate_total_return()   <span class="comment"># 收益率计算</span>
+│
+├── 可视化函数
+│   └── plot_strategy_results()    <span class="comment"># 图表绘制</span>
+│
+├── 主回测函数
+│   └── macd_strategy_backtest()    <span class="comment"># 策略回测核心逻辑</span>
+│
+└── 主程序入口
+    └── <span class="keyword">if</span> __name__ == <span class="string">"__main__"</span>:
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>十、使用说明</h2>
+            <ol>
+                <li><strong>准备数据：</strong>确保data目录下有股票数据的CSV文件（688256_SH_daily.csv）</li>
+                <li><strong>运行脚本：</strong>执行 <code>python 2-macd_strategy_2025.py</code></li>
+                <li><strong>查看结果：</strong>结果文件保存在outputs目录下</li>
+                <li><strong>分析图表：</strong>查看生成的PNG图表文件，分析策略表现</li>
+            </ol>
+            
+            <div class="info-box">
+                <strong>数据要求：</strong>
+                <ul>
+                    <li>CSV文件必须包含 <code>date</code> 和 <code>close</code> 列</li>
+                    <li>日期格式：YYYY-MM-DD</li>
+                    <li>需要有足够的历史数据用于计算MACD指标（至少需要26+9+2=37个交易日）</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd; text-align: center; color: #666;">
+            <p>文档生成时间：2026年2月4日</p>
+            <p>代码文件：2-macd_strategy_2025.py</p>
+        </div>
+    </div>
+</body>
+</html>
